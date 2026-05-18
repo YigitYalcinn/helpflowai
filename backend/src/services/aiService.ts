@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import { OpenAI } from "openai";
 import { TicketPriority } from "@prisma/client";
 import { z } from "zod";
 import { env } from "../config/env.js";
