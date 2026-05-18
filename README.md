@@ -129,6 +129,19 @@ npm run seed
 
 This creates departments, support units, categories, and the initial admin user.
 
+### Single Vercel Project With Services
+
+If Vercel detects this repository as a multi-service project, keep the Vercel Framework Preset set to `Services`. The root `vercel.json` defines:
+
+- `frontend` at `/`
+- `backend` at `/api`
+
+For this mode, set frontend API URL to:
+
+```bash
+VITE_API_URL=/api
+```
+
 ### Backend on Render
 
 This repository includes `render.yaml` for a Render web service.
