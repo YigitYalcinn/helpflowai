@@ -22,7 +22,7 @@ export function RegisterPage() {
   const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { departmentId: "" } });
 
   useEffect(() => {
-    api.get<ApiResponse<Department[]>>("/departments").then((res) => setDepartments(res.data.data));
+    api.get<ApiResponse<Department[]>>("/public/departments").then((res) => setDepartments(res.data.data));
   }, []);
 
   async function onSubmit(values: FormValues) {

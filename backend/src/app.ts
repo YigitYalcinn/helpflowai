@@ -6,6 +6,7 @@ import { adminRoutes } from "./routes/adminRoutes.js";
 import { aiRoutes } from "./routes/aiRoutes.js";
 import { authRoutes } from "./routes/authRoutes.js";
 import { dashboardRoutes } from "./routes/dashboardRoutes.js";
+import { publicRoutes } from "./routes/publicRoutes.js";
 import { ticketRoutes } from "./routes/ticketRoutes.js";
 import { errorHandler, notFound } from "./middlewares/errorHandler.js";
 import { rateLimit, securityHeaders } from "./middlewares/securityMiddleware.js";
@@ -25,6 +26,7 @@ app.use(rateLimit({ windowMs: 60_000, max: 180 }));
 app.use(express.json({ limit: "2mb" }));
 
 app.get("/api/health", (_req, res) => res.json({ success: true, message: "HelpFlow API is running" }));
+app.use("/api/public", publicRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/tickets", ticketRoutes);
 app.use("/api/ai", aiRoutes);
