@@ -1,0 +1,232 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  EMPLOYEE
+  IT_STAFF
+  ADMIN
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_USER
+  RESOLVED
+  CLOSED
+  CANCELLED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model User {
+  id                 String                    @id @default(cuid())
+  name               String
+  email              String                    @unique
+  passwordHash       String
+  role               Role                      @default(EMPLOYEE)
+  departmentId       String?
+  supportUnitId      String?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+  department         Department?               @relation(fields: [departmentId], references: [id])
+  supportUnit        SupportUnit?              @relation(fields: [supportUnitId], references: [id])
+  createdTickets     Ticket[]                  @relation("TicketCreator")
+  assignedTickets    Ticket[]                  @relation("TicketAssignee")
+  messages           TicketMessage[]
+  internalNotes      TicketInternalNote[]
+  statusChanges      TicketStatusHistory[]
+  assignmentChanges  TicketAssignmentHistory[] @relation("AssignmentChangedBy")
+  satisfactionRatings SatisfactionRating[]
+
+  @@map("users")
+}
+
+model Department {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  users       User[]
+  tickets     Ticket[]
+
+  @@map("departments")
+}
+
+model SupportUnit {
+  id                       String                    @id @default(cuid())
+  name                     String                    @unique
+  description              String?
+  isActive                 Boolean                   @default(true)
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  users                    User[]
+  categories               Category[]
+  tickets                  Ticket[]
+  fromAssignmentHistories  TicketAssignmentHistory[] @relation("FromSupportUnit")
+  toAssignmentHistories    TicketAssignmentHistory[] @relation("ToSupportUnit")
+
+  @@map("support_units")
+}
+
+model Category {
+  id            String      @id @default(cuid())
+  name          String      @unique
+  description   String?
+  supportUnitId String
+  isActive      Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  supportUnit   SupportUnit @relation(fields: [supportUnitId], references: [id])
+  tickets       Ticket[]
+
+  @@map("categories")
+}
+
+model Ticket {
+  id                  String                    @id @default(cuid())
+  ticketNumber        String                    @unique
+  title               String
+  description         String
+  status              TicketStatus              @default(OPEN)
+  priority            TicketPriority            @default(MEDIUM)
+  createdById         String
+  departmentId        String?
+  categoryId          String
+  supportUnitId       String
+  assignedToId        String?
+  location            String?
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+  resolvedAt          DateTime?
+  closedAt            DateTime?
+  createdBy           User                      @relation("TicketCreator", fields: [createdById], references: [id])
+  department          Department?               @relation(fields: [departmentId], references: [id])
+  category            Category                  @relation(fields: [categoryId], references: [id])
+  supportUnit         SupportUnit               @relation(fields: [supportUnitId], references: [id])
+  assignedTo          User?                     @relation("TicketAssignee", fields: [assignedToId], references: [id])
+  messages            TicketMessage[]
+  internalNotes       TicketInternalNote[]
+  aiAnalysis          TicketAiAnalysis?
+  statusHistory       TicketStatusHistory[]
+  assignmentHistory   TicketAssignmentHistory[]
+  attachments         TicketAttachment[]
+  satisfactionRatings SatisfactionRating[]
+
+  @@index([status])
+  @@index([priority])
+  @@index([supportUnitId])
+  @@index([createdById])
+  @@map("tickets")
+}
+
+model TicketMessage {
+  id        String   @id @default(cuid())
+  ticketId  String
+  senderId  String
+  message   String
+  createdAt DateTime @default(now())
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  sender    User     @relation(fields: [senderId], references: [id])
+
+  @@map("ticket_messages")
+}
+
+model TicketInternalNote {
+  id        String   @id @default(cuid())
+  ticketId  String
+  authorId  String
+  note      String
+  createdAt DateTime @default(now())
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [authorId], references: [id])
+
+  @@map("ticket_internal_notes")
+}
+
+model TicketAiAnalysis {
+  id                   String         @id @default(cuid())
+  ticketId             String         @unique
+  summary              String
+  suggestedCategory    String
+  suggestedSupportUnit String
+  suggestedPriority    TicketPriority
+  impact               String
+  possibleCauses       String[]
+  suggestedSolutions   String[]
+  questionsToAsk       String[]
+  confidenceScore      Float
+  rawResponse          Json
+  createdAt            DateTime       @default(now())
+  ticket               Ticket         @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@map("ticket_ai_analysis")
+}
+
+model TicketStatusHistory {
+  id          String       @id @default(cuid())
+  ticketId    String
+  oldStatus   TicketStatus?
+  newStatus   TicketStatus
+  changedById String
+  createdAt   DateTime     @default(now())
+  ticket      Ticket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  changedBy   User         @relation(fields: [changedById], references: [id])
+
+  @@map("ticket_status_history")
+}
+
+model TicketAssignmentHistory {
+  id               String       @id @default(cuid())
+  ticketId         String
+  fromSupportUnitId String?
+  toSupportUnitId   String?
+  fromAssignedToId String?
+  toAssignedToId   String?
+  changedById      String
+  reason           String?
+  createdAt        DateTime     @default(now())
+  ticket           Ticket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  fromSupportUnit  SupportUnit? @relation("FromSupportUnit", fields: [fromSupportUnitId], references: [id])
+  toSupportUnit    SupportUnit? @relation("ToSupportUnit", fields: [toSupportUnitId], references: [id])
+  changedBy        User         @relation("AssignmentChangedBy", fields: [changedById], references: [id])
+
+  @@map("ticket_assignment_history")
+}
+
+model TicketAttachment {
+  id        String   @id @default(cuid())
+  ticketId  String
+  fileName  String
+  fileUrl   String
+  mimeType  String
+  size      Int
+  createdAt DateTime @default(now())
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@map("ticket_attachments")
+}
+
+model SatisfactionRating {
+  id        String   @id @default(cuid())
+  ticketId  String
+  userId    String
+  score     Int
+  comment   String?
+  createdAt DateTime @default(now())
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@map("satisfaction_ratings")
+}
