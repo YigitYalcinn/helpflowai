@@ -7,4 +7,3 @@ build
 coverage
 *.log
 backend/prisma/dev.db
-backend/api/*.js
