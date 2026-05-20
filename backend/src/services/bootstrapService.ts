@@ -1,6 +1,6 @@
 import { prisma } from "../config/prisma.js";
 
-const departments = [
+export const defaultDepartments = [
   "İnsan Kaynakları",
   "Mali Hizmetler",
   "Fen İşleri",
@@ -43,7 +43,7 @@ const categoryMappings = [
 ] as const;
 
 export async function ensureBootstrapData() {
-  for (const name of departments) {
+  for (const name of defaultDepartments) {
     await prisma.department.upsert({
       where: { name },
       update: {},

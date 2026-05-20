@@ -6,6 +6,7 @@ import { loginSchema, registerSchema } from "../validators/authValidators.js";
 import { AppError } from "../utils/errors.js";
 import { signToken } from "../utils/auth.js";
 import { success } from "../utils/apiResponse.js";
+import { ensureBootstrapData } from "../services/bootstrapService.js";
 
 const publicUserSelect = {
   id: true,
@@ -23,12 +24,15 @@ export async function register(req: Request, res: Response) {
   const existing = await prisma.user.findUnique({ where: { email: input.email } });
   if (existing) throw new AppError("Email already registered", 409);
 
-  const department = await prisma.department.findUnique({ where: { id: input.departmentId } });
+  await ensureBootstrapData();
+  const department = await prisma.department.findFirst({
+    where: { OR: [{ id: input.departmentId }, { name: input.departmentId }] }
+  });
   if (!department) throw new AppError("Department not found", 404);
 
   const passwordHash = await bcrypt.hash(input.password, 10);
   const user = await prisma.user.create({
-    data: { name: input.name, email: input.email, passwordHash, role: Role.EMPLOYEE, departmentId: input.departmentId },
+    data: { name: input.name, email: input.email, passwordHash, role: Role.EMPLOYEE, departmentId: department.id },
     select: publicUserSelect
   });
   const token = signToken({ userId: user.id, role: user.role });
