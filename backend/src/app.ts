@@ -1,7 +1,7 @@
 import cors from "cors";
 import express from "express";
 import "./types.js";
-import { corsOrigins } from "./config/env.js";
+import { isAllowedCorsOrigin } from "./config/env.js";
 import { adminRoutes } from "./routes/adminRoutes.js";
 import { aiRoutes } from "./routes/aiRoutes.js";
 import { authRoutes } from "./routes/authRoutes.js";
@@ -17,8 +17,8 @@ app.set("trust proxy", 1);
 app.use(securityHeaders);
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || corsOrigins.includes(origin)) return callback(null, true);
-    return callback(new Error("Not allowed by CORS"));
+    if (isAllowedCorsOrigin(origin)) return callback(null, true);
+    return callback(null, false);
   },
   credentials: true
 }));

@@ -21,3 +21,15 @@ export const corsOrigins = (env.CORS_ORIGINS ?? env.FRONTEND_URL)
   .split(",")
   .map((origin) => origin.trim())
   .filter(Boolean);
+
+export function isAllowedCorsOrigin(origin?: string) {
+  if (!origin) return true;
+  if (corsOrigins.includes(origin)) return true;
+
+  try {
+    const hostname = new URL(origin).hostname;
+    return hostname === "vercel.app" || hostname.endsWith(".vercel.app");
+  } catch {
+    return false;
+  }
+}
