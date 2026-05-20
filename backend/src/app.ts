@@ -25,6 +25,8 @@ app.use(cors({
 app.use(rateLimit({ windowMs: 60_000, max: 180 }));
 app.use(express.json({ limit: "2mb" }));
 
+app.get("/", (_req, res) => res.json({ success: true, message: "HelpFlow API root" }));
+app.get("/favicon.ico", (_req, res) => res.status(204).end());
 app.get("/api/health", (_req, res) => res.json({ success: true, message: "HelpFlow API is running" }));
 app.use("/api/public", publicRoutes);
 app.use("/api/auth", authRoutes);
