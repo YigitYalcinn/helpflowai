@@ -1,6 +1,31 @@
 # HelpFlow AI
 
-HelpFlow AI is a full-stack IT support request management system inspired by internal help desk workflows. Employees create tickets, IT teams manage lifecycle and assignment, and AI analyzes each request to suggest category, priority, responsible support unit, possible causes, and resolution steps.
+**AI-assisted IT help desk that routes each support request to the right team, with a priority, as soon as it is submitted.**
+
+In many organisations an IT coordinator reads every incoming ticket by hand and forwards it to the printer team, the network team, the software team and so on. HelpFlow AI automates that first step: an employee describes the problem in plain language, and the system suggests a category, the responsible support unit, a priority, likely causes and the questions IT should ask next. The workflow is modelled on the IT department of a Turkish municipality, so the UI and sample data are in Turkish.
+
+**Live demo:** _add your deployed URL here_ · one-click demo login on the sign-in page (Admin / Employee / IT Staff)
+
+<!-- Add screenshots after deploying: employee ticket form, AI analysis panel, admin dashboard -->
+<p>
+  <img src="screenshots/01-login.png" alt="Sign-in page with demo login" width="45%" />
+</p>
+
+## How triage works
+
+1. **OpenAI path** (when `OPENAI_API_KEY` is set): the ticket and the organisation's category → support unit mappings are sent to the model, which must return JSON. The response is validated with a Zod schema before it is saved.
+2. **Rule-based fallback** (no key, API error, or invalid JSON): `backend/src/services/triageRules.ts` scores Turkish/English keywords per category, weighting the title higher and multi-word phrases higher, and assigns priority from urgency words. The app keeps working without any API key instead of returning an empty analysis.
+
+## Evaluation
+
+`npm run eval:triage` (in `backend/`) checks category accuracy on 60 hand-labelled, synthetic tickets written in everyday employee language:
+
+| Method | Development set (40) | Held-out set (20) |
+| --- | --- | --- |
+| Rule-based fallback | 92.5% | **70.0%** |
+| OpenAI (`npm run eval:triage -- --ai`) | _run with your key_ | _run with your key_ |
+
+The development set was used while writing the keyword rules, so its score is optimistic; the held-out set was written after the rules were frozen and is the realistic number. Keyword rules miss tickets that describe a problem without its usual words (e.g. "pop-up windows keep opening" → security), which is exactly where the LLM path is meant to help. These are synthetic tickets, not production data.
 
 ## Stack
 
@@ -58,6 +83,7 @@ npm run build
 npm run prisma:generate
 npm run prisma:migrate
 npm run seed
+npm run eval:triage
 ```
 
 ## Frontend Scripts
@@ -89,7 +115,7 @@ npm run prisma:deploy
 npm run seed
 ```
 
-Use these production seed variables so only your real admin account is created:
+For a public portfolio demo, set `SEED_DEMO_USERS=true` so the one-click demo accounts on the sign-in page exist. For a real deployment, use these production seed variables so only your real admin account is created:
 
 ```bash
 SEED_DEMO_USERS=false

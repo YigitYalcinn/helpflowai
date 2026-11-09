@@ -5,16 +5,28 @@ import { useNavigate, Link } from "react-router-dom";
 import { z } from "zod";
 import { useAuth } from "../../contexts/AuthContext";
 
+const demoAccounts = [
+  { label: "Yönetici", email: "admin@demo.com", password: "Admin123!" },
+  { label: "Çalışan", email: "employee@demo.com", password: "Employee123!" },
+  { label: "BT Personeli", email: "network.it@demo.com", password: "Staff123!" }
+] as const;
+
 const schema = z.object({ email: z.string().email(), password: z.string().min(1) });
 type FormValues = z.infer<typeof schema>;
 
 export function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormValues>({
+  const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { email: "admin@demo.com", password: "Admin123!" }
   });
+
+  async function loginAsDemo(account: (typeof demoAccounts)[number]) {
+    setValue("email", account.email);
+    setValue("password", account.password);
+    await onSubmit({ email: account.email, password: account.password });
+  }
 
   async function onSubmit(values: FormValues) {
     const user = await login(values.email, values.password);
@@ -45,6 +57,22 @@ export function LoginPage() {
             Giriş Yap
           </button>
         </form>
+        <div className="mt-6 border-t border-slate-200 pt-5">
+          <p className="mb-3 text-center text-xs font-medium uppercase tracking-wide text-slate-500">Demo olarak dene</p>
+          <div className="grid grid-cols-3 gap-2">
+            {demoAccounts.map((account) => (
+              <button
+                key={account.email}
+                type="button"
+                disabled={isSubmitting}
+                onClick={() => loginAsDemo(account)}
+                className="rounded-lg border border-slate-300 px-2 py-2 text-sm font-medium text-slate-700 hover:border-brand-500 hover:text-brand-700 disabled:opacity-60"
+              >
+                {account.label}
+              </button>
+            ))}
+          </div>
+        </div>
         <p className="mt-5 text-center text-sm text-slate-500">
           Hesabın yok mu? <Link className="font-semibold text-brand-600" to="/register">Kayıt ol</Link>
         </p>
