@@ -48,6 +48,7 @@ model User {
   statusChanges      TicketStatusHistory[]
   assignmentChanges  TicketAssignmentHistory[] @relation("AssignmentChangedBy")
   satisfactionRatings SatisfactionRating[]
+  attachments        TicketAttachment[]        @relation("AttachmentUploader")
 
   @@map("users")
 }
@@ -122,7 +123,7 @@ model Ticket {
   statusHistory       TicketStatusHistory[]
   assignmentHistory   TicketAssignmentHistory[]
   attachments         TicketAttachment[]
-  satisfactionRatings SatisfactionRating[]
+  satisfactionRating  SatisfactionRating?
 
   @@index([status])
   @@index([priority])
@@ -206,21 +207,24 @@ model TicketAssignmentHistory {
 }
 
 model TicketAttachment {
-  id        String   @id @default(cuid())
-  ticketId  String
-  fileName  String
-  fileUrl   String
-  mimeType  String
-  size      Int
-  createdAt DateTime @default(now())
-  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  id           String   @id @default(cuid())
+  ticketId     String
+  uploadedById String
+  fileName     String
+  mimeType     String
+  size         Int
+  data         Bytes
+  createdAt    DateTime @default(now())
+  ticket       Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  uploadedBy   User     @relation("AttachmentUploader", fields: [uploadedById], references: [id])
 
+  @@index([ticketId])
   @@map("ticket_attachments")
 }
 
 model SatisfactionRating {
   id        String   @id @default(cuid())
-  ticketId  String
+  ticketId  String   @unique
   userId    String
   score     Int
   comment   String?

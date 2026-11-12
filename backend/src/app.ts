@@ -20,10 +20,13 @@ app.use(cors({
     if (isAllowedCorsOrigin(origin)) return callback(null, true);
     return callback(null, false);
   },
-  credentials: true
+  credentials: true,
+  exposedHeaders: ["Content-Disposition"]
 }));
 app.use(rateLimit({ windowMs: 60_000, max: 180 }));
-app.use(express.json({ limit: "2mb" }));
+// Attachment uploads arrive as base64 JSON and need a larger body than the rest of the API.
+app.use("/api/tickets/:id/attachments", express.json({ limit: "5mb" }));
+app.use(express.json({ limit: "200kb" }));
 
 app.get("/", (_req, res) => res.json({ success: true, message: "HelpFlow API root" }));
 app.get(["/favicon.ico", "/favicon.png", "/apple-touch-icon.png", "/robots.txt"], (_req, res) => res.status(204).end());

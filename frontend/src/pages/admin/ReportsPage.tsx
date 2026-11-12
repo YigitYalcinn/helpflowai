@@ -1,49 +1,86 @@
-import { useEffect, useState } from "react";
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Card } from "../../components/ui/Card";
-import { api } from "../../lib/api";
-import { ApiResponse } from "../../types";
+import { Bot, Hourglass, Smile, Ticket as TicketIcon } from "lucide-react";
+import { useState } from "react";
+import { BarList, TrendChart } from "../../components/charts";
+import { Card, PageHeader, StatCard } from "../../components/ui/Card";
+import { ErrorState, PageLoader } from "../../components/ui/States";
+import { useAuth } from "../../contexts/AuthContext";
+import { useFetch } from "../../hooks/useFetch";
+import { formatHours, priorityLabels, statusLabels } from "../../lib/format";
+import { ReportOverview, ReportRow, TicketPriority, TicketStatus } from "../../types";
 
-type ReportKind = "tickets-by-priority" | "tickets-by-category" | "tickets-by-support-unit" | "tickets-by-department";
-type ReportRow = { label: string; count: number };
-
-const reportOptions: { value: ReportKind; label: string }[] = [
-  { value: "tickets-by-priority", label: "Oncelige gore" },
-  { value: "tickets-by-category", label: "Kategoriye gore" },
-  { value: "tickets-by-support-unit", label: "Destek ekibine gore" },
-  { value: "tickets-by-department", label: "Departmana gore" }
+const ranges = [
+  { value: "7", label: "Son 7 gün" },
+  { value: "30", label: "Son 30 gün" },
+  { value: "90", label: "Son 90 gün" },
+  { value: "0", label: "Tüm zamanlar" }
 ];
 
 export function ReportsPage() {
-  const [kind, setKind] = useState<ReportKind>("tickets-by-priority");
-  const [rows, setRows] = useState<ReportRow[]>([]);
+  const { user } = useAuth();
+  const [days, setDays] = useState("30");
+  const { data, loading, error, reload } = useFetch<ReportOverview>(`/reports/overview${days === "0" ? "" : `?days=${days}`}`);
 
-  useEffect(() => {
-    api.get<ApiResponse<ReportRow[]>>(`/reports/${kind}`).then((res) => setRows(res.data.data));
-  }, [kind]);
+  const header = (
+    <PageHeader
+      title="Raporlar"
+      description={user?.role === "ADMIN" ? "Seçilen dönemde açılan tüm talepler." : "Seçilen dönemde ekibinize gelen talepler."}
+      actions={
+        <select value={days} onChange={(event) => setDays(event.target.value)} className="input w-44" aria-label="Dönem">
+          {ranges.map((range) => <option key={range.value} value={range.value}>{range.label}</option>)}
+        </select>
+      }
+    />
+  );
+
+  if (loading && !data) return <div className="space-y-5">{header}<PageLoader /></div>;
+  if (error || !data) return <div className="space-y-5">{header}<ErrorState message={error ?? "Rapor yüklenemedi."} onRetry={reload} /></div>;
+
+  const { kpis } = data;
+  const translate = (rows: ReportRow[], labels: Record<string, string>) => rows.map((row) => ({ ...row, label: labels[row.label] ?? row.label }));
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-950">Raporlar</h1>
-          <p className="text-sm text-slate-500">Ticket dagilimini kategori, ekip, departman ve oncelige gore izleyin.</p>
-        </div>
-        <select value={kind} onChange={(event) => setKind(event.target.value as ReportKind)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
-          {reportOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-        </select>
+      {header}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Açılan talep" value={kpis.total} icon={TicketIcon} />
+        <StatCard label="Ortalama çözüm süresi" value={formatHours(kpis.avgResolutionHours)} hint="Açılıştan çözüme" icon={Hourglass} />
+        <StatCard
+          label="Memnuniyet"
+          value={kpis.satisfaction.average === null ? "-" : `${kpis.satisfaction.average.toLocaleString("tr-TR")} / 5`}
+          hint={kpis.satisfaction.count ? `${kpis.satisfaction.count} değerlendirme` : "Henüz değerlendirme yok"}
+          icon={Smile}
+        />
+        <StatCard
+          label="AI kategori isabeti"
+          value={kpis.aiAccuracy === null ? "-" : `%${kpis.aiAccuracy}`}
+          hint={kpis.aiAnalyzed ? `${kpis.aiAnalyzed} analizde öneri = son kategori` : "Analiz edilen talep yok"}
+          icon={Bot}
+        />
       </div>
-      <Card className="h-[380px]">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={rows} margin={{ left: 8, right: 8, bottom: 80 }}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="label" angle={-32} textAnchor="end" interval={0} height={92} tick={{ fontSize: 12 }} />
-            <YAxis allowDecimals={false} />
-            <Tooltip />
-            <Bar dataKey="count" fill="#2563eb" radius={[6, 6, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
+
+      <Card>
+        <h2 className="text-base font-bold text-slate-950">Talep akışı</h2>
+        <p className="text-sm text-slate-500">Günlük açılan ve çözülen talep sayısı{days === "0" ? " (son 30 gün)" : ""}.</p>
+        <div className="mt-4"><TrendChart data={data.trend} height={280} /></div>
       </Card>
+
+      <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+        <ReportCard title="Kategoriye göre" rows={data.byCategory} />
+        <ReportCard title="Destek ekibine göre" rows={data.bySupportUnit} />
+        <ReportCard title="Departmana göre" rows={data.byDepartment} />
+        <ReportCard title="Duruma göre" rows={translate(data.byStatus, statusLabels as Record<TicketStatus, string>)} />
+        <ReportCard title="Önceliğe göre" rows={translate([...data.byPriority].reverse(), priorityLabels as Record<TicketPriority, string>)} />
+        <ReportCard title="Personele göre çözülen" rows={data.byStaff} emptyText="Bu dönemde çözülen atanmış talep yok." />
+      </div>
     </div>
+  );
+}
+
+function ReportCard({ title, rows, emptyText }: { title: string; rows: ReportRow[]; emptyText?: string }) {
+  return (
+    <Card>
+      <h2 className="text-base font-bold text-slate-950">{title}</h2>
+      <div className="mt-4"><BarList rows={rows} emptyText={emptyText ?? "Bu dönemde talep yok."} /></div>
+    </Card>
   );
 }

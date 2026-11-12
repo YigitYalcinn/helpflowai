@@ -1,32 +1,30 @@
-import { Router } from "express";
+import { NextFunction, Request, Response, Router } from "express";
 import { Role } from "@prisma/client";
-import { createResource, deleteResource, deleteUser, listResource, updateResource, updateUser, users } from "../controllers/adminController.js";
+import { createResource, createUser, deleteResource, deleteUser, listResource, ResourceType, updateResource, updateUser, users } from "../controllers/adminController.js";
 import { requireAuth, requireRole } from "../middlewares/authMiddleware.js";
+import { wrap } from "../utils/asyncHandler.js";
 
 export const adminRoutes = Router();
 
-adminRoutes.use(requireAuth);
-adminRoutes.get("/users", requireRole(Role.ADMIN), users);
-adminRoutes.patch("/users/:id", requireRole(Role.ADMIN), updateUser);
-adminRoutes.delete("/users/:id", requireRole(Role.ADMIN), deleteUser);
+const admin = requireRole(Role.ADMIN);
 
-function resourceRoutes(path: string, resource: "department" | "supportUnit" | "category") {
-  adminRoutes.get(path, (req, _res, next) => {
+adminRoutes.use(requireAuth);
+adminRoutes.get("/users", admin, wrap(users));
+adminRoutes.post("/users", admin, wrap(createUser));
+adminRoutes.patch("/users/:id", admin, wrap(updateUser));
+adminRoutes.delete("/users/:id", admin, wrap(deleteUser));
+
+function resourceRoutes(path: string, resource: ResourceType) {
+  const tag = (req: Request, _res: Response, next: NextFunction) => {
     req.params.resource = resource;
     next();
-  }, listResource);
-  adminRoutes.post(path, requireRole(Role.ADMIN), (req, _res, next) => {
-    req.params.resource = resource;
-    next();
-  }, createResource);
-  adminRoutes.patch(`${path}/:id`, requireRole(Role.ADMIN), (req, _res, next) => {
-    req.params.resource = resource;
-    next();
-  }, updateResource);
-  adminRoutes.delete(`${path}/:id`, requireRole(Role.ADMIN), (req, _res, next) => {
-    req.params.resource = resource;
-    next();
-  }, deleteResource);
+  };
+
+  // Everyone signed in can read these lists (ticket forms need them); only admins can change them.
+  adminRoutes.get(path, tag, wrap(listResource));
+  adminRoutes.post(path, admin, tag, wrap(createResource));
+  adminRoutes.patch(`${path}/:id`, admin, tag, wrap(updateResource));
+  adminRoutes.delete(`${path}/:id`, admin, tag, wrap(deleteResource));
 }
 
 resourceRoutes("/departments", "department");

@@ -1,22 +1,34 @@
 import { Request, Response } from "express";
 import { prisma } from "../config/prisma.js";
-import { analyzeTicket, buildSimpleReplySuggestion } from "../services/aiService.js";
+import { aiEnabled, analyzeTicket, closingSummary, suggestReply, summarizeTicket } from "../services/aiService.js";
+import { buildTicketContext, reanalyzeTicket } from "../services/ticketService.js";
 import { success } from "../utils/apiResponse.js";
+import { routeParam } from "../utils/request.js";
+import { analyzePreviewSchema } from "../validators/ticketValidators.js";
 
-export async function analyze(req: Request, res: Response) {
+export async function status(_req: Request, res: Response) {
+  res.json(success({ provider: aiEnabled() ? "openai" : "rules" }));
+}
+
+/** Live preview while an employee is still writing the ticket. Nothing is stored. */
+export async function analyzePreview(req: Request, res: Response) {
+  const input = analyzePreviewSchema.parse(req.body);
   const categories = await prisma.category.findMany({ where: { isActive: true }, include: { supportUnit: true } });
-  const result = await analyzeTicket({ title: req.body.title ?? "", description: req.body.description ?? "", categories });
-  res.json(success(result));
+  res.json(success(await analyzeTicket({ ...input, categories })));
 }
 
-export async function suggestReply(req: Request, res: Response) {
-  res.json(success(buildSimpleReplySuggestion(req.body.description ?? "")));
+export async function reanalyze(req: Request, res: Response) {
+  res.json(success(await reanalyzeTicket(routeParam(req, "id"), req.user!), "AI analizi yenilendi"));
 }
 
-export async function summarizeTicket(req: Request, res: Response) {
-  res.json(success({ summary: `Ticket özeti: ${(req.body.description ?? "").slice(0, 240)}` }));
+export async function reply(req: Request, res: Response) {
+  res.json(success(await suggestReply(await buildTicketContext(routeParam(req, "id"), req.user!))));
 }
 
-export async function closingSummary(req: Request, res: Response) {
-  res.json(success({ summary: "Talep çözüme ulaştırıldı. Yapılan işlem ve kullanıcı onayı kapanış notuna eklenmelidir." }));
+export async function summary(req: Request, res: Response) {
+  res.json(success(await summarizeTicket(await buildTicketContext(routeParam(req, "id"), req.user!))));
+}
+
+export async function closing(req: Request, res: Response) {
+  res.json(success(await closingSummary(await buildTicketContext(routeParam(req, "id"), req.user!))));
 }

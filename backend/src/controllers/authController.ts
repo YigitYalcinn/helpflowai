@@ -21,14 +21,14 @@ const publicUserSelect = {
 
 export async function register(req: Request, res: Response) {
   const input = registerSchema.parse(req.body);
-  const existing = await prisma.user.findUnique({ where: { email: input.email } });
-  if (existing) throw new AppError("Email already registered", 409);
+  const existing = await prisma.user.findFirst({ where: { email: { equals: input.email, mode: "insensitive" } } });
+  if (existing) throw new AppError("Bu e-posta adresi zaten kayıtlı", 409);
 
   await ensureBootstrapData();
   const department = await prisma.department.findFirst({
     where: { OR: [{ id: input.departmentId }, { name: input.departmentId }] }
   });
-  if (!department) throw new AppError("Department not found", 404);
+  if (!department) throw new AppError("Departman bulunamadı", 404);
 
   const passwordHash = await bcrypt.hash(input.password, 10);
   const user = await prisma.user.create({
@@ -41,11 +41,11 @@ export async function register(req: Request, res: Response) {
 
 export async function login(req: Request, res: Response) {
   const input = loginSchema.parse(req.body);
-  const user = await prisma.user.findUnique({ where: { email: input.email }, include: { department: true, supportUnit: true } });
-  if (!user) throw new AppError("Invalid credentials", 401);
+  const user = await prisma.user.findFirst({ where: { email: { equals: input.email, mode: "insensitive" } }, include: { department: true, supportUnit: true } });
+  if (!user) throw new AppError("E-posta veya şifre hatalı", 401);
 
   const valid = await bcrypt.compare(input.password, user.passwordHash);
-  if (!valid) throw new AppError("Invalid credentials", 401);
+  if (!valid) throw new AppError("E-posta veya şifre hatalı", 401);
 
   const token = signToken({ userId: user.id, role: user.role });
   const { passwordHash: _passwordHash, ...safeUser } = user;
