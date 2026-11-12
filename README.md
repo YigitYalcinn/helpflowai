@@ -48,7 +48,7 @@ The interface is in Turkish.
 
 ## Quick Start
 
-Requires Node.js 20 and a PostgreSQL database.
+Requires Node.js 22 and a PostgreSQL database.
 
 ```bash
 npm install
