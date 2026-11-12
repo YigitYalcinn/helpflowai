@@ -21,7 +21,7 @@ const supportUnits = [
   "Genel BT Destek Ekibi"
 ];
 
-const categoryMappings = [
+export const categoryMappings = [
   ["Yazıcı / Tarayıcı", "Yazıcı ve Tarayıcı Destek Ekibi"],
   ["İnternet Bağlantısı", "Ağ ve İnternet Destek Ekibi"],
   ["Wi-Fi Sorunu", "Ağ ve İnternet Destek Ekibi"],
