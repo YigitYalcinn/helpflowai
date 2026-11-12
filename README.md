@@ -21,7 +21,7 @@ The interface is in Turkish.
 - Conversation with the requester, plus internal notes only IT staff can see
 - File attachments (images, PDF, Office, text; 3 MB each, 5 per ticket) stored in PostgreSQL, so no object storage account is needed
 - 1-5 satisfaction rating once a ticket is resolved
-- Search and filters by status, priority and category
+- Search and filters by status and priority
 
 **AI assistant**
 - Triage on creation: summary, category, team, priority, impact, causes, steps, follow-up questions, confidence score
