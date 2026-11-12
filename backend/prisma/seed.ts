@@ -5,6 +5,7 @@ import { prisma } from "../src/config/prisma.js";
 import { analyzeWithRules } from "../src/services/aiRules.js";
 import { ensureBootstrapData } from "../src/services/bootstrapService.js";
 
+const DEMO_ADMIN_EMAIL = "admin@demo.com";
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
 
@@ -325,11 +326,22 @@ async function main() {
   const employeeHash = await bcrypt.hash("Employee123!", 10);
   const staffHash = await bcrypt.hash("Staff123!", 10);
 
+  // The login page's "Yönetici" demo button signs in as admin@demo.com. When the
+  // real admin uses another address, create a separate public demo admin for it.
+  if (adminEmail !== DEMO_ADMIN_EMAIL) {
+    const demoAdminHash = await bcrypt.hash("Admin123!", 10);
+    await prisma.user.upsert({
+      where: { email: DEMO_ADMIN_EMAIL },
+      update: { passwordHash: demoAdminHash, role: Role.ADMIN },
+      create: { name: "Demo Yönetici", email: DEMO_ADMIN_EMAIL, passwordHash: demoAdminHash, role: Role.ADMIN }
+    });
+  }
+
   for (const employee of demoEmployees) {
     const department = await prisma.department.findUniqueOrThrow({ where: { name: employee.department } });
     await prisma.user.upsert({
       where: { email: employee.email },
-      update: { name: employee.name },
+      update: { name: employee.name, passwordHash: employeeHash },
       create: { name: employee.name, email: employee.email, passwordHash: employeeHash, role: Role.EMPLOYEE, departmentId: department.id }
     });
   }
@@ -338,7 +350,7 @@ async function main() {
     const unit = await prisma.supportUnit.findUniqueOrThrow({ where: { name: staff.unit } });
     await prisma.user.upsert({
       where: { email: staff.email },
-      update: { name: staff.name },
+      update: { name: staff.name, passwordHash: staffHash },
       create: { name: staff.name, email: staff.email, passwordHash: staffHash, role: Role.IT_STAFF, supportUnitId: unit.id }
     });
   }

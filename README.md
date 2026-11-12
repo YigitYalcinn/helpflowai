@@ -74,7 +74,9 @@ The login page has one-click buttons for these (hide them with `VITE_SHOW_DEMO_L
 | IT staff (printers) | `printer.it@demo.com` | `Staff123!` |
 | IT staff (cameras) | `camera.it@demo.com` | `Staff123!` |
 
-Demo users are only created when `SEED_DEMO_USERS=true` (or outside production). Do not enable them on a deployment that holds real data.
+Demo users are only created when `SEED_DEMO_USERS=true` (or outside production); this includes a public demo admin (`admin@demo.com`) when `SEED_ADMIN_EMAIL` is a different address. Do not enable them on a deployment that holds real data.
+
+Live demo: https://helpflowai.vercel.app
 
 ## Tests
 
