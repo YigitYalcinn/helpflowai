@@ -1,5 +1,6 @@
-import { TicketPriority, TicketStatus } from "../../types";
+import { priorityLabels, statusLabels } from "../../lib/format";
 import { cn } from "../../lib/utils";
+import { TicketPriority, TicketStatus } from "../../types";
 
 const statusClass: Record<TicketStatus, string> = {
   OPEN: "bg-sky-50 text-sky-700 ring-sky-200",
@@ -17,10 +18,12 @@ const priorityClass: Record<TicketPriority, string> = {
   URGENT: "bg-red-50 text-red-700 ring-red-200"
 };
 
+const base = "inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ring-1";
+
 export function StatusBadge({ status }: { status: TicketStatus }) {
-  return <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold ring-1", statusClass[status])}>{status.replace("_", " ")}</span>;
+  return <span className={cn(base, statusClass[status])}>{statusLabels[status]}</span>;
 }
 
 export function PriorityBadge({ priority }: { priority: TicketPriority }) {
-  return <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold ring-1", priorityClass[priority])}>{priority}</span>;
+  return <span className={cn(base, priorityClass[priority])}>{priorityLabels[priority]}</span>;
 }

@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { api } from "../lib/api";
+import { api, TOKEN_KEY, UNAUTHORIZED_EVENT } from "../lib/api";
 import { ApiResponse, Role, User } from "../types";
 
 type AuthContextValue = {
@@ -9,14 +9,16 @@ type AuthContextValue = {
   register: (payload: { name: string; email: string; password: string; departmentId?: string }) => Promise<User>;
   logout: () => void;
   defaultPath: string;
+  /** URL prefix of the signed-in role's pages: /employee, /it or /admin. */
+  basePath: string;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-function pathForRole(role?: Role) {
-  if (role === "ADMIN") return "/admin/dashboard";
-  if (role === "IT_STAFF") return "/it/dashboard";
-  return "/employee/dashboard";
+export function basePathForRole(role?: Role) {
+  if (role === "ADMIN") return "/admin";
+  if (role === "IT_STAFF") return "/it";
+  return "/employee";
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -24,34 +26,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!localStorage.getItem(TOKEN_KEY)) {
+      setLoading(false);
+      return;
+    }
     api
       .get<ApiResponse<User>>("/auth/me")
       .then((res) => setUser(res.data.data))
-      .catch(() => localStorage.removeItem("helpflow_token"))
+      .catch(() => undefined)
       .finally(() => setLoading(false));
   }, []);
 
-  const value = useMemo<AuthContextValue>(() => ({
-    user,
-    loading,
-    defaultPath: pathForRole(user?.role),
-    async login(email, password) {
-      const res = await api.post<ApiResponse<{ user: User; token: string }>>("/auth/login", { email, password });
-      localStorage.setItem("helpflow_token", res.data.data.token);
-      setUser(res.data.data.user);
-      return res.data.data.user;
-    },
-    async register(payload) {
-      const res = await api.post<ApiResponse<{ user: User; token: string }>>("/auth/register", payload);
-      localStorage.setItem("helpflow_token", res.data.data.token);
-      setUser(res.data.data.user);
-      return res.data.data.user;
-    },
-    logout() {
-      localStorage.removeItem("helpflow_token");
-      setUser(null);
-    }
-  }), [loading, user]);
+  useEffect(() => {
+    const onUnauthorized = () => setUser(null);
+    window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
+  }, []);
+
+  const value = useMemo<AuthContextValue>(() => {
+    const basePath = basePathForRole(user?.role);
+    const startSession = (data: { user: User; token: string }) => {
+      localStorage.setItem(TOKEN_KEY, data.token);
+      setUser(data.user);
+      return data.user;
+    };
+
+    return {
+      user,
+      loading,
+      basePath,
+      defaultPath: `${basePath}/dashboard`,
+      async login(email, password) {
+        const res = await api.post<ApiResponse<{ user: User; token: string }>>("/auth/login", { email, password });
+        return startSession(res.data.data);
+      },
+      async register(payload) {
+        const res = await api.post<ApiResponse<{ user: User; token: string }>>("/auth/register", payload);
+        return startSession(res.data.data);
+      },
+      logout() {
+        localStorage.removeItem(TOKEN_KEY);
+        setUser(null);
+      }
+    };
+  }, [loading, user]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

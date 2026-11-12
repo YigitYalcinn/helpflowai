@@ -12,7 +12,8 @@ const envSchema = z.object({
   FRONTEND_URL: z.string().default("http://localhost:5173"),
   CORS_ORIGINS: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
-  OPENAI_MODEL: z.string().default("gpt-4o-mini")
+  OPENAI_MODEL: z.string().default("gpt-4o-mini"),
+  APP_TIMEZONE: z.string().default("Europe/Istanbul")
 }).passthrough();
 
 export const env = envSchema.parse(process.env);

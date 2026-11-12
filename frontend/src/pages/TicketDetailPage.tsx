@@ -1,218 +1,204 @@
-import { useEffect, useState } from "react";
-import { Check, ClipboardCheck, RotateCcw, Send, UserPlus } from "lucide-react";
-import { useParams } from "react-router-dom";
+import { ArrowLeft, Ban, ClipboardCheck, RotateCcw } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { PriorityBadge, StatusBadge } from "../components/ui/Badge";
+import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
+import { ErrorState, PageLoader } from "../components/ui/States";
+import { useToast } from "../components/ui/Toast";
 import { useAuth } from "../contexts/AuthContext";
+import { useAction } from "../hooks/useAction";
+import { useFetch } from "../hooks/useFetch";
 import { api } from "../lib/api";
-import { ApiResponse, Category, SupportUnit, Ticket, TicketPriority, TicketStatus } from "../types";
-
-const statuses: TicketStatus[] = ["OPEN", "IN_PROGRESS", "WAITING_USER", "RESOLVED", "CLOSED", "CANCELLED"];
-const priorities: TicketPriority[] = ["LOW", "MEDIUM", "HIGH", "URGENT"];
+import { formatDateTime } from "../lib/format";
+import { Category, Ticket } from "../types";
+import { AiPanel } from "./ticket/AiPanel";
+import { Attachments } from "./ticket/Attachments";
+import { Conversation } from "./ticket/Conversation";
+import { InternalNotes } from "./ticket/InternalNotes";
+import { RatingCard } from "./ticket/RatingCard";
+import { TicketActions } from "./ticket/TicketActions";
+import { Timeline } from "./ticket/Timeline";
 
 export function TicketDetailPage() {
   const { id } = useParams();
-  const { user } = useAuth();
-  const [ticket, setTicket] = useState<Ticket | null>(null);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [supportUnits, setSupportUnits] = useState<SupportUnit[]>([]);
-  const [message, setMessage] = useState("");
-  const [note, setNote] = useState("");
-  const [editForm, setEditForm] = useState({ title: "", description: "", location: "", categoryId: "" });
-  const canManage = user?.role === "IT_STAFF" || user?.role === "ADMIN";
-  const canEmployeeEdit = user?.role === "EMPLOYEE" && !["RESOLVED", "CLOSED", "CANCELLED"].includes(ticket?.status ?? "CLOSED");
+  const { user, basePath } = useAuth();
+  const navigate = useNavigate();
+  const toast = useToast();
+  const { data: ticket, loading, error, status, reload } = useFetch<Ticket>(`/tickets/${id}`);
+  const [draft, setDraft] = useState("");
+  const replyAnchor = useRef<HTMLDivElement>(null);
 
-  async function load() {
-    const res = await api.get<ApiResponse<Ticket>>(`/tickets/${id}`);
-    setTicket(res.data.data);
-    setEditForm({
-      title: res.data.data.title,
-      description: res.data.data.description,
-      location: res.data.data.location ?? "",
-      categoryId: res.data.data.category?.id ?? ""
-    });
-  }
+  const listPath = `${basePath}/tickets`;
+  const isStaff = user?.role !== "EMPLOYEE";
 
+  // A ticket that was readable and now answers 404 has left this user's scope
+  // (transferred to another team or deleted); go back to the list.
   useEffect(() => {
-    load();
-    api.get<ApiResponse<Category[]>>("/categories").then((res) => setCategories(res.data.data));
-    api.get<ApiResponse<SupportUnit[]>>("/support-units").then((res) => setSupportUnits(res.data.data));
-  }, [id]);
+    if (ticket && status === 404) {
+      toast.info("Talep artık görüntüleme kapsamınızda değil.");
+      navigate(listPath, { replace: true });
+    }
+  }, [listPath, navigate, status, ticket, toast]);
 
-  async function mutate(path: string, payload?: unknown) {
-    await api.patch(`/tickets/${id}/${path}`, payload ?? {});
-    await load();
+  if (loading && !ticket) return <PageLoader />;
+  if (!ticket) {
+    return (
+      <div className="space-y-4">
+        <ErrorState message={status === 404 ? "Talep bulunamadı veya görüntüleme yetkiniz yok." : error ?? "Talep yüklenemedi."} onRetry={status === 404 ? undefined : reload} />
+        <Link to={listPath} className="inline-flex items-center gap-2 text-sm font-semibold text-brand-600"><ArrowLeft size={16} /> Taleplere dön</Link>
+      </div>
+    );
   }
 
-  async function sendMessage() {
-    if (!message.trim()) return;
-    await api.post(`/tickets/${id}/messages`, { message });
-    setMessage("");
-    await load();
-  }
-
-  async function addNote() {
-    if (!note.trim()) return;
-    await api.post(`/tickets/${id}/internal-notes`, { note });
-    setNote("");
-    await load();
-  }
-
-  async function closeTicket() {
-    await api.post(`/tickets/${id}/close`);
-    await load();
-  }
-
-  async function saveEmployeeEdit(event: React.FormEvent) {
-    event.preventDefault();
-    await api.patch(`/tickets/${id}`, {
-      title: editForm.title,
-      description: editForm.description,
-      location: editForm.location || null,
-      categoryId: editForm.categoryId
-    });
-    await load();
-  }
-
-  async function reopenTicket() {
-    await api.post(`/tickets/${id}/reopen`);
-    await load();
-  }
-
-  if (!ticket) return <div className="text-slate-600">Yukleniyor...</div>;
+  const canEdit = user?.role === "EMPLOYEE" && !["RESOLVED", "CLOSED", "CANCELLED"].includes(ticket.status);
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[1fr_380px]">
-      <div className="space-y-5">
-        <Card>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <p className="text-sm font-semibold text-brand-700">{ticket.ticketNumber}</p>
-              <h1 className="mt-1 text-2xl font-bold text-slate-950">{ticket.title}</h1>
-              <p className="mt-3 text-slate-600">{ticket.description}</p>
-            </div>
-            <div className="flex gap-2"><StatusBadge status={ticket.status} /><PriorityBadge priority={ticket.priority} /></div>
-          </div>
-          <dl className="mt-6 grid gap-4 text-sm md:grid-cols-2">
-            <Info label="Kategori" value={ticket.category?.name} />
-            <Info label="Destek ekibi" value={ticket.supportUnit?.name} />
-            <Info label="Acan kullanici" value={ticket.createdBy?.name} />
-            <Info label="Departman" value={ticket.department?.name} />
-            <Info label="Atanan IT personeli" value={ticket.assignedTo?.name ?? "Atanmadi"} />
-            <Info label="Konum" value={ticket.location ?? "-"} />
-          </dl>
-        </Card>
-
-        {canManage && (
+    <div className="space-y-5">
+      <Link to={listPath} className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-brand-700"><ArrowLeft size={16} /> Taleplere dön</Link>
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="min-w-0 space-y-5">
           <Card>
-            <h2 className="text-lg font-bold text-slate-950">Ticket aksiyonlari</h2>
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <ActionSelect label="Durum" value={ticket.status} options={statuses} onChange={(status) => mutate("status", { status })} />
-              <ActionSelect label="Oncelik" value={ticket.priority} options={priorities} onChange={(priority) => mutate("priority", { priority })} />
-              <ActionSelect label="Kategori" value={ticket.category?.id ?? ""} options={categories.map((item) => ({ value: item.id, label: item.name }))} onChange={(categoryId) => mutate("category", { categoryId })} />
-              <ActionSelect label="Transfer" value={ticket.supportUnit?.id ?? ""} options={supportUnits.map((item) => ({ value: item.id, label: item.name }))} onChange={(supportUnitId) => mutate("transfer", { supportUnitId, reason: "UI transfer" })} />
-            </div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button onClick={() => mutate("assign")} className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white"><UserPlus size={16} /> Uzerime al</button>
-              <button onClick={() => api.post(`/tickets/${id}/resolve`).then(load)} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white"><Check size={16} /> Cozuldu</button>
-              <button onClick={reopenTicket} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700"><RotateCcw size={16} /> Yeniden ac</button>
-            </div>
-          </Card>
-        )}
-
-        {canEmployeeEdit && (
-          <Card>
-            <h2 className="text-lg font-bold text-slate-950">Talebi duzenle</h2>
-            <form onSubmit={saveEmployeeEdit} className="mt-4 grid gap-3">
-              <input value={editForm.title} onChange={(event) => setEditForm((current) => ({ ...current, title: event.target.value }))} className="rounded-lg border border-slate-300 px-3 py-2" placeholder="Baslik" />
-              <textarea value={editForm.description} onChange={(event) => setEditForm((current) => ({ ...current, description: event.target.value }))} rows={4} className="rounded-lg border border-slate-300 px-3 py-2" placeholder="Aciklama" />
-              <div className="grid gap-3 md:grid-cols-2">
-                <select value={editForm.categoryId} onChange={(event) => setEditForm((current) => ({ ...current, categoryId: event.target.value }))} className="rounded-lg border border-slate-300 bg-white px-3 py-2">
-                  {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-                </select>
-                <input value={editForm.location} onChange={(event) => setEditForm((current) => ({ ...current, location: event.target.value }))} className="rounded-lg border border-slate-300 px-3 py-2" placeholder="Konum" />
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-brand-700">{ticket.ticketNumber}</p>
+                <h1 className="mt-1 break-words text-2xl font-bold text-slate-950">{ticket.title}</h1>
               </div>
-              <button className="w-fit rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white">Degisiklikleri kaydet</button>
-            </form>
-          </Card>
-        )}
-
-        <Card>
-          <h2 className="text-lg font-bold text-slate-950">Mesajlar</h2>
-          <div className="mt-4 space-y-3">
-            {ticket.messages?.length ? ticket.messages.map((item) => (
-              <div key={item.id} className="rounded-lg bg-slate-50 p-3">
-                <p className="text-xs font-semibold text-slate-500">{item.sender?.name}</p>
-                <p className="mt-1 text-sm text-slate-700">{item.message}</p>
-              </div>
-            )) : <p className="text-sm text-slate-500">Henuz mesaj yok.</p>}
-          </div>
-          <div className="mt-4 flex gap-2">
-            <input value={message} onChange={(event) => setMessage(event.target.value)} className="flex-1 rounded-lg border border-slate-300 px-3 py-2" placeholder="Yanit yaz..." />
-            <button onClick={sendMessage} className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 font-semibold text-white"><Send size={16} /> Gonder</button>
-          </div>
-          {user?.role === "EMPLOYEE" && ticket.status === "RESOLVED" && (
-            <button onClick={closeTicket} className="mt-3 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white"><ClipboardCheck size={16} /> Talebi kapat</button>
-          )}
-        </Card>
-
-        {canManage && (
-          <Card>
-            <h2 className="text-lg font-bold text-slate-950">Ic notlar</h2>
-            <div className="mt-4 space-y-3">
-              {ticket.internalNotes?.length ? ticket.internalNotes.map((item) => (
-                <div key={item.id} className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-                  <p className="text-xs font-semibold text-amber-700">{item.author?.name}</p>
-                  <p className="mt-1 text-sm text-slate-700">{item.note}</p>
-                </div>
-              )) : <p className="text-sm text-slate-500">Ic not eklenmemis.</p>}
+              <div className="flex shrink-0 gap-2"><StatusBadge status={ticket.status} /><PriorityBadge priority={ticket.priority} /></div>
             </div>
-            <div className="mt-4 flex gap-2">
-              <input value={note} onChange={(event) => setNote(event.target.value)} className="flex-1 rounded-lg border border-slate-300 px-3 py-2" placeholder="Ic not yaz..." />
-              <button onClick={addNote} className="rounded-lg bg-amber-600 px-4 py-2 font-semibold text-white">Ekle</button>
-            </div>
+            <p className="mt-3 whitespace-pre-wrap break-words text-slate-700">{ticket.description}</p>
+            <dl className="mt-6 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
+              <Info label="Kategori" value={ticket.category?.name} />
+              <Info label="Destek ekibi" value={ticket.supportUnit?.name} />
+              <Info label="Atanan personel" value={ticket.assignedTo?.name ?? "Atanmadı"} />
+              <Info label="Talebi açan" value={ticket.createdBy?.name} />
+              <Info label="Departman" value={ticket.department?.name} />
+              <Info label="Konum" value={ticket.location} />
+              <Info label="Açılış" value={formatDateTime(ticket.createdAt)} />
+              {ticket.resolvedAt && <Info label="Çözüm" value={formatDateTime(ticket.resolvedAt)} />}
+              {ticket.closedAt && <Info label="Kapanış" value={formatDateTime(ticket.closedAt)} />}
+            </dl>
+            {!isStaff && <RequesterActions ticket={ticket} reload={reload} />}
           </Card>
-        )}
+
+          {isStaff && <TicketActions ticket={ticket} reload={reload} />}
+          <div ref={replyAnchor}><Conversation ticket={ticket} reload={reload} draft={draft} setDraft={setDraft} /></div>
+          {isStaff && <InternalNotes ticket={ticket} reload={reload} />}
+          <Attachments ticket={ticket} reload={reload} />
+          {canEdit && <EditCard key={ticket.updatedAt} ticket={ticket} reload={reload} />}
+        </div>
+
+        <div className="min-w-0 space-y-5">
+          <RatingCard key={`${ticket.status}-${ticket.satisfactionRating?.score ?? 0}`} ticket={ticket} reload={reload} />
+          <AiPanel
+            ticket={ticket}
+            reload={reload}
+            onUseAsMessage={(text) => {
+              setDraft(text);
+              replyAnchor.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+            }}
+          />
+          <Timeline ticket={ticket} />
+        </div>
       </div>
-
-      <Card className="h-fit">
-        <h2 className="text-lg font-bold text-slate-950">AI Assistant Panel</h2>
-        {ticket.aiAnalysis ? (
-          <div className="mt-4 space-y-4 text-sm">
-            <Info label="Ozet" value={ticket.aiAnalysis.summary} />
-            <Info label="Onerilen kategori" value={ticket.aiAnalysis.suggestedCategory} />
-            <Info label="Onerilen destek ekibi" value={ticket.aiAnalysis.suggestedSupportUnit} />
-            <Info label="Onerilen oncelik" value={ticket.aiAnalysis.suggestedPriority} />
-            <Info label="Etki" value={ticket.aiAnalysis.impact} />
-            <List title="Muhtemel nedenler" items={ticket.aiAnalysis.possibleCauses} />
-            <List title="Cozum adimlari" items={ticket.aiAnalysis.suggestedSolutions} />
-            <List title="Istenen ek bilgiler" items={ticket.aiAnalysis.questionsToAsk} />
-            <div className="rounded-lg bg-brand-50 p-3 font-semibold text-brand-700">Confidence: {(ticket.aiAnalysis.confidenceScore * 100).toFixed(0)}%</div>
-          </div>
-        ) : <p className="mt-3 text-sm text-slate-500">AI analizi bulunamadi.</p>}
-      </Card>
     </div>
   );
 }
 
 function Info({ label, value }: { label: string; value?: string | null }) {
-  return <div><dt className="text-xs font-semibold uppercase text-slate-400">{label}</dt><dd className="mt-1 text-slate-700">{value ?? "-"}</dd></div>;
-}
-
-function List({ title, items }: { title: string; items: string[] }) {
-  return <div><p className="font-semibold text-slate-700">{title}</p><ul className="mt-2 list-disc space-y-1 pl-5 text-slate-600">{items.map((item) => <li key={item}>{item}</li>)}</ul></div>;
-}
-
-function ActionSelect({ label, value, options, onChange }: { label: string; value: string; options: (string | { value: string; label: string })[]; onChange: (value: string) => void }) {
   return (
-    <label className="block">
-      <span className="text-xs font-semibold uppercase text-slate-400">{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
-        {options.map((option) => {
-          const item = typeof option === "string" ? { value: option, label: option } : option;
-          return <option key={item.value} value={item.value}>{item.label}</option>;
-        })}
-      </select>
-    </label>
+    <div className="min-w-0">
+      <dt className="text-xs font-semibold uppercase text-slate-400">{label}</dt>
+      <dd className="mt-1 break-words text-slate-700">{value || "-"}</dd>
+    </div>
+  );
+}
+
+/** What the person who opened the ticket can do with it, depending on its state. */
+function RequesterActions({ ticket, reload }: { ticket: Ticket; reload: () => Promise<void> }) {
+  const { run, busy } = useAction();
+  const act = async (key: string, path: string, message: string) => {
+    const ok = await run(key, () => api.post(`/tickets/${ticket.id}/${path}`), message);
+    if (ok) await reload();
+  };
+
+  if (ticket.status === "CANCELLED") return null;
+
+  return (
+    <div className="mt-6 border-t border-slate-100 pt-4">
+      {ticket.status === "RESOLVED" && (
+        <>
+          <p className="text-sm font-medium text-slate-800">BT ekibi bu talebi çözüldü olarak işaretledi. Sorununuz giderildi mi?</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button variant="success" loading={busy === "close"} disabled={busy !== null} onClick={() => act("close", "close", "Talep kapatıldı. Geri bildiriminiz için teşekkürler.")}><ClipboardCheck size={16} /> Evet, talebi kapat</Button>
+            <Button variant="secondary" loading={busy === "reopen"} disabled={busy !== null} onClick={() => act("reopen", "reopen", "Talep yeniden açıldı.")}><RotateCcw size={16} /> Hayır, sorun sürüyor</Button>
+          </div>
+        </>
+      )}
+      {ticket.status === "CLOSED" && (
+        <Button variant="secondary" loading={busy === "reopen"} disabled={busy !== null} onClick={() => act("reopen", "reopen", "Talep yeniden açıldı.")}><RotateCcw size={16} /> Sorun tekrarladı, yeniden aç</Button>
+      )}
+      {["OPEN", "IN_PROGRESS", "WAITING_USER"].includes(ticket.status) && (
+        <Button
+          variant="danger"
+          loading={busy === "cancel"}
+          disabled={busy !== null}
+          onClick={() => {
+            if (window.confirm("Bu talebi iptal etmek istediğinize emin misiniz? İptal edilen talep yeniden açılamaz.")) act("cancel", "cancel", "Talep iptal edildi.");
+          }}
+        >
+          <Ban size={16} /> Talebi iptal et
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function EditCard({ ticket, reload }: { ticket: Ticket; reload: () => Promise<void> }) {
+  const { run, busy } = useAction();
+  const categories = useFetch<Category[]>("/categories");
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ title: ticket.title, description: ticket.description, location: ticket.location ?? "", categoryId: ticket.category?.id ?? "" });
+
+  async function save(event: React.FormEvent) {
+    event.preventDefault();
+    const ok = await run("save", () => api.patch(`/tickets/${ticket.id}`, { ...form, location: form.location.trim() || null }), "Talep güncellendi.");
+    if (ok) await reload();
+  }
+
+  if (!open) {
+    return <Button variant="secondary" onClick={() => setOpen(true)}>Talep bilgilerini düzenle</Button>;
+  }
+
+  return (
+    <Card>
+      <h2 className="text-lg font-bold text-slate-950">Talebi düzenle</h2>
+      <form onSubmit={save} className="mt-4 grid gap-3">
+        <div>
+          <label className="label" htmlFor="edit-title">Başlık</label>
+          <input id="edit-title" value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} className="input" required minLength={3} maxLength={160} />
+        </div>
+        <div>
+          <label className="label" htmlFor="edit-description">Açıklama</label>
+          <textarea id="edit-description" value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} rows={5} className="input" required minLength={10} maxLength={5000} />
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <div>
+            <label className="label" htmlFor="edit-category">Kategori</label>
+            <select id="edit-category" value={form.categoryId} onChange={(event) => setForm((current) => ({ ...current, categoryId: event.target.value }))} className="input">
+              {(categories.data ?? []).filter((category) => category.isActive || category.id === ticket.category?.id).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label" htmlFor="edit-location">Konum</label>
+            <input id="edit-location" value={form.location} onChange={(event) => setForm((current) => ({ ...current, location: event.target.value }))} className="input" maxLength={160} />
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Button type="submit" loading={busy === "save"}>Değişiklikleri kaydet</Button>
+          <Button variant="ghost" onClick={() => setOpen(false)}>Vazgeç</Button>
+        </div>
+      </form>
+    </Card>
   );
 }
