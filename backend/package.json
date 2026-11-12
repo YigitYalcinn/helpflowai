@@ -17,6 +17,7 @@
     "prisma:deploy": "prisma migrate deploy",
     "seed": "tsx prisma/seed.ts",
     "test": "vitest run",
+    "eval:triage": "tsx eval/evaluateTriage.ts",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.tools.json"
   },

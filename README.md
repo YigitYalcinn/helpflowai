@@ -95,6 +95,17 @@ TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/helpflow_test np
 
 They cover authentication, role-based access, the ticket lifecycle, routing, transfers, ratings, attachments, admin management and the rule-based AI engine. Tests never call OpenAI.
 
+## Triage Evaluation
+
+`npm run eval:triage --workspace backend` measures category accuracy on 60 hand-labelled, synthetic tickets written in everyday employee language (`backend/eval/sampleTickets.ts`). It needs neither a database nor an API key.
+
+| Method | Set A (40) | Set B (20) | All (60) |
+| --- | --- | --- | --- |
+| Rule-based engine | 85.0% | 70.0% | 80.0% |
+| OpenAI (`npm run eval:triage --workspace backend -- --ai`) | not measured | not measured | not measured |
+
+The rule engine was not tuned on these tickets. Its misses are requests that describe a problem without the usual keywords (for example "strange pop-up windows keep opening" is a security issue but contains no security term), which is where the model path is meant to help. The numbers describe synthetic tickets, not production data.
+
 ## Project Structure
 
 ```text
