@@ -37,7 +37,7 @@ export function RegisterPage() {
   }
 
   return (
-    <div className="grid min-h-screen place-items-center bg-slate-50 px-4 py-10">
+    <div className="grid min-h-screen place-items-center bg-paper px-4 py-10">
       <form onSubmit={handleSubmit(onSubmit)} className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-8 shadow-soft" noValidate>
         <h1 className="text-xl font-bold text-slate-950">Yeni çalışan hesabı</h1>
         <p className="mt-1 text-sm text-slate-500">Departman bilgisi, taleplerinizin raporlanması için kullanılır.</p>

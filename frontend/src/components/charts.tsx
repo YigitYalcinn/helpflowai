@@ -3,8 +3,8 @@ import { formatDayKey } from "../lib/format";
 import { ReportRow, TrendPoint } from "../types";
 
 // Two categorical hues, checked for colour-blind separation and contrast on white.
-const CREATED = "#1d4ed8";
-const RESOLVED = "#d97706";
+const CREATED = "#17656b";
+const RESOLVED = "#c27803";
 
 export function TrendChart({ data, height = 260 }: { data: TrendPoint[]; height?: number }) {
   const hasData = data.some((point) => point.created > 0 || point.resolved > 0);

@@ -1,6 +1,8 @@
 import React, { Suspense, lazy } from "react";
 import ReactDOM from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
+import "@fontsource-variable/bricolage-grotesque";
+import "@fontsource-variable/instrument-sans";
 import "./index.css";
 import { AppLayout } from "./components/layout/AppLayout";
 import { ProtectedRoute } from "./components/layout/ProtectedRoute";
