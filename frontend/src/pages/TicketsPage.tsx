@@ -22,16 +22,19 @@ export function TicketsPage({ assignedOnly = false }: { assignedOnly?: boolean }
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<StatusFilter>("ACTIVE");
   const [priority, setPriority] = useState<"ALL" | TicketPriority>("ALL");
+  const [category, setCategory] = useState("ALL");
   const [unassignedOnly, setUnassignedOnly] = useState(false);
   const [sort, setSort] = useState<Sort>("newest");
 
   const isEmployee = user?.role === "EMPLOYEE";
+  const categoryNames = useMemo(() => [...new Set((data ?? []).map((ticket) => ticket.category?.name).filter((name): name is string => Boolean(name)))].sort((a, b) => a.localeCompare(b, "tr")), [data]);
   const tickets = useMemo(() => (data ?? []).filter((ticket) => !assignedOnly || ticket.assignedTo?.id === user?.id), [assignedOnly, data, user?.id]);
 
   const visible = useMemo(() => {
     const rows = tickets
       .filter((ticket) => status === "ALL" || (status === "ACTIVE" ? activeStatuses.includes(ticket.status) : ticket.status === status))
       .filter((ticket) => priority === "ALL" || ticket.priority === priority)
+      .filter((ticket) => category === "ALL" || ticket.category?.name === category)
       .filter((ticket) => !unassignedOnly || !ticket.assignedTo)
       .filter((ticket) => !query.trim() || matchesQuery(`${ticket.ticketNumber} ${ticket.title} ${ticket.description} ${ticket.createdBy?.name ?? ""} ${ticket.category?.name ?? ""}`, query));
 
@@ -39,7 +42,7 @@ export function TicketsPage({ assignedOnly = false }: { assignedOnly?: boolean }
     if (sort === "oldest") return rows.sort((a, b) => byDate(b, a));
     if (sort === "priority") return rows.sort((a, b) => priorityRank[a.priority] - priorityRank[b.priority] || byDate(a, b));
     return rows.sort(byDate);
-  }, [priority, query, sort, status, tickets, unassignedOnly]);
+  }, [category, priority, query, sort, status, tickets, unassignedOnly]);
 
   function exportCsv() {
     const rows = visible.map((ticket) => [
@@ -63,7 +66,7 @@ export function TicketsPage({ assignedOnly = false }: { assignedOnly?: boolean }
   if (loading && !data) return <PageLoader />;
   if (error && !data) return <ErrorState message={error} onRetry={reload} />;
 
-  const filtered = status !== "ACTIVE" || priority !== "ALL" || unassignedOnly || Boolean(query.trim());
+  const filtered = status !== "ACTIVE" || priority !== "ALL" || category !== "ALL" || unassignedOnly || Boolean(query.trim());
 
   return (
     <div className="space-y-5">
@@ -93,6 +96,10 @@ export function TicketsPage({ assignedOnly = false }: { assignedOnly?: boolean }
           <option value="ALL">Tüm öncelikler</option>
           {priorities.map((item) => <option key={item} value={item}>{priorityLabels[item]}</option>)}
         </select>
+        <select value={category} onChange={(event) => setCategory(event.target.value)} className="input md:w-48" aria-label="Kategori filtresi">
+          <option value="ALL">Tüm kategoriler</option>
+          {categoryNames.map((name) => <option key={name} value={name}>{name}</option>)}
+        </select>
         <select value={sort} onChange={(event) => setSort(event.target.value as Sort)} className="input md:w-44" aria-label="Sıralama">
           <option value="newest">En yeni önce</option>
           <option value="oldest">En eski önce</option>
@@ -111,7 +118,7 @@ export function TicketsPage({ assignedOnly = false }: { assignedOnly?: boolean }
           <EmptyState
             title={filtered ? "Bu filtrelere uyan talep yok" : "Devam eden talep yok"}
             description={filtered ? "Filtreleri değiştirerek tekrar deneyin." : "Geçmiş talepleri görmek için durum filtresini değiştirin."}
-            action={<Button variant="secondary" onClick={() => { setQuery(""); setStatus("ALL"); setPriority("ALL"); setUnassignedOnly(false); }}>Tüm talepleri göster</Button>}
+            action={<Button variant="secondary" onClick={() => { setQuery(""); setStatus("ALL"); setPriority("ALL"); setCategory("ALL"); setUnassignedOnly(false); }}>Tüm talepleri göster</Button>}
           />
         ) : (
           <table className="w-full text-left text-sm">

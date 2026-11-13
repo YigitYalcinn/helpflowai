@@ -1,5 +1,7 @@
 # HelpFlow AI
 
+[![CI](https://github.com/YigitYalcinn/helpflowai/actions/workflows/ci.yml/badge.svg)](https://github.com/YigitYalcinn/helpflowai/actions/workflows/ci.yml)
+
 HelpFlow AI is a full-stack IT help desk. Employees open support requests, an AI assistant triages each one (category, priority, responsible team, likely causes, first steps), and IT staff work the ticket through its lifecycle with AI-drafted replies, hand-over summaries and closing notes.
 
 The interface is in Turkish.
@@ -21,7 +23,7 @@ The interface is in Turkish.
 - Conversation with the requester, plus internal notes only IT staff can see
 - File attachments (images, PDF, Office, text; 3 MB each, 5 per ticket) stored in PostgreSQL, so no object storage account is needed
 - 1-5 satisfaction rating once a ticket is resolved
-- Search and filters by status and priority
+- Search and filters by status, priority and category
 
 **AI assistant**
 - Triage on creation: summary, category, team, priority, impact, causes, steps, follow-up questions, confidence score
