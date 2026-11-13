@@ -42,7 +42,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="grid min-h-screen place-items-center bg-slate-50 px-4 py-10">
+    <div className="grid min-h-screen place-items-center bg-paper px-4 py-10">
       <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-8 shadow-soft">
         <div className="mb-8 flex items-center gap-3">
           <span className="grid h-11 w-11 place-items-center rounded-lg bg-brand-600 text-white"><LifeBuoy size={22} /></span>
